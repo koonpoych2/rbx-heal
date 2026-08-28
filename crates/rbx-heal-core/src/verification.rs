@@ -649,12 +649,15 @@ fn probe_identity(program: &Path) -> (Option<String>, Option<String>) {
     }
     let version_text = match probe_version(program) {
         Ok(text) => text,
-        Err(error) if executable.eq_ignore_ascii_case("luau-analyze") => {
-            // Luau's standalone analyzer does not expose a stable --version
-            // flag in all official releases.  Its help banner is still a
+        Err(error)
+            if executable.eq_ignore_ascii_case("luau-analyze")
+                || executable.eq_ignore_ascii_case("luau-compile") =>
+        {
+            // Luau's standalone tools do not expose a stable --version flag
+            // in all official releases.  Their help banner is still a
             // bounded, executable-identity check; configured expected_version
             // or expected_sha256 constraints remain authoritative when used.
-            match probe_argument(program, "--help", "Luau analyzer help probe") {
+            match probe_argument(program, "--help", "Luau tool help probe") {
                 Ok(help) => format!("help banner (version flag unsupported): {help}"),
                 Err(help_error) => return (None, Some(format!("{error}; {help_error}"))),
             }

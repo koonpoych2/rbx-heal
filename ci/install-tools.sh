@@ -53,6 +53,14 @@ for tool in rojo luau stylua; do
     exit 1
   fi
   install -m 0755 "$binary" "$destination/$binary_name"
+  if [[ "$tool" == "luau" ]]; then
+    compile_binary="$(find "$extract" -type f -name "luau-compile" -print -quit)"
+    if [[ -z "$compile_binary" ]]; then
+      echo "Locked luau archive did not contain luau-compile" >&2
+      exit 1
+    fi
+    install -m 0755 "$compile_binary" "$destination/luau-compile"
+  fi
 done
 
 echo "Locked verifier tools installed in $destination"
