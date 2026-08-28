@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 /// Small dependency-free SHA-256 implementation used only for executable
 /// identity checks.  Source/history fingerprints continue to use keyed
 /// BLAKE3; this helper exists because the tool-lock contract names SHA-256.
@@ -88,10 +90,11 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         state[7] = state[7].wrapping_add(h);
     }
 
-    state
-        .iter()
-        .map(|word| format!("{word:08x}"))
-        .collect::<String>()
+    let mut output = String::with_capacity(state.len() * 8);
+    for word in state {
+        write!(&mut output, "{word:08x}").expect("writing a SHA-256 word to String cannot fail");
+    }
+    output
 }
 
 #[cfg(test)]

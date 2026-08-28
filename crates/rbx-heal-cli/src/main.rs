@@ -764,10 +764,16 @@ fn public_verification_config() -> VerifyConfig {
     VerifyConfig {
         commands: vec![
             VerifyCommand {
-                kind: VerifyKind::LuauAnalyze,
+                // Luau's compiler exposes a stable parse-only mode, while
+                // luau-analyze also typechecks/lints and can legitimately
+                // return diagnostics for third-party projects.  The pilot's
+                // official gate is a syntax reparse, so use the compiler's
+                // --only-parse mode and keep analysis available to users via
+                // the normal configured verifier path.
+                kind: VerifyKind::Generic,
                 name: "luau-reparse".into(),
-                program: "luau-analyze".into(),
-                args: Vec::new(),
+                program: "luau-compile".into(),
+                args: vec!["--only-parse".into(), "{changed}".into()],
                 timeout_ms: Some(60_000),
                 required: true,
                 ..Default::default()
@@ -1024,7 +1030,7 @@ fn run_public_pilot_case(
     };
     let after_hashes = source_hashes(&project_root).unwrap_or_default();
     case.source_unchanged = before_hashes == after_hashes;
-    case.tool_versions = ["rojo", "luau-analyze"]
+    case.tool_versions = ["rojo", "luau-analyze", "luau-compile"]
         .into_iter()
         .map(|program| (program.to_string(), tool_version(program)))
         .collect();
@@ -1193,17 +1199,17 @@ fn run_pilot(engine_root: &Path, format: OutputFormat) -> Result<u8, Box<dyn std
     let after_hashes = source_hashes(&pilot_root)?;
     let source_unchanged = before_hashes == after_hashes;
 
-    let tool_versions = ["rojo", "luau-analyze", "stylua"]
+    let tool_versions = ["rojo", "luau-analyze", "luau-compile", "stylua"]
         .into_iter()
         .map(|program| (program.to_string(), tool_version(program)))
         .collect::<BTreeMap<_, _>>();
     let verification_config = VerifyConfig {
         commands: vec![
             VerifyCommand {
-                kind: VerifyKind::LuauAnalyze,
+                kind: VerifyKind::Generic,
                 name: "luau-reparse".into(),
-                program: "luau-analyze".into(),
-                args: Vec::new(),
+                program: "luau-compile".into(),
+                args: vec!["--only-parse".into(), "{changed}".into()],
                 timeout_ms: Some(60_000),
                 required: false,
                 ..Default::default()

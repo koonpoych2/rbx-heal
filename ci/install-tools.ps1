@@ -39,6 +39,15 @@ try {
             throw "Locked $toolName archive did not contain $($tools[$toolName])"
         }
         Copy-Item -LiteralPath $binary.FullName -Destination (Join-Path $destinationPath $tools[$toolName]) -Force
+        if ($toolName -eq "luau") {
+            $compiler = Get-ChildItem -LiteralPath $extract -Recurse -File |
+                Where-Object { $_.Name -ieq "luau-compile.exe" } |
+                Select-Object -First 1
+            if ($null -eq $compiler) {
+                throw "Locked luau archive did not contain luau-compile.exe"
+            }
+            Copy-Item -LiteralPath $compiler.FullName -Destination (Join-Path $destinationPath "luau-compile.exe") -Force
+        }
     }
 }
 finally {

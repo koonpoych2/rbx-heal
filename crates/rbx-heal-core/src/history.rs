@@ -220,7 +220,13 @@ fn load_or_create_installation_key() -> [u8; 32] {
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    use std::fmt::Write as _;
+
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut output, "{byte:02x}").expect("writing bytes to String cannot fail");
+    }
+    output
 }
 
 pub fn record(event: &HistoryEvent) -> Result<(), HistoryError> {

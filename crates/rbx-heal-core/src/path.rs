@@ -150,23 +150,12 @@ pub fn validate_finding_file(
 }
 
 pub fn relative_utf8(project_root: &Path, path: &Path) -> Result<String, PathError> {
-    let relative = path
-        .strip_prefix(project_root)
-        .ok()
-        .map(Path::to_path_buf)
-        .or_else(|| {
-            #[cfg(windows)]
-            {
-                case_insensitive_relative(project_root, path)
-            }
-            #[cfg(not(windows))]
-            {
-                None
-            }
-        })
-        .ok_or_else(|| PathError::OutsideRoot {
-            path: path.to_path_buf(),
-        })?;
+    let relative = path.strip_prefix(project_root).ok().map(Path::to_path_buf);
+    #[cfg(windows)]
+    let relative = relative.or_else(|| case_insensitive_relative(project_root, path));
+    let relative = relative.ok_or_else(|| PathError::OutsideRoot {
+        path: path.to_path_buf(),
+    })?;
     let relative = relative.to_str().ok_or_else(|| PathError::NonUtf8 {
         path: path.to_path_buf(),
     })?;
@@ -208,7 +197,7 @@ fn is_within(root: &Path, candidate: &Path) -> bool {
         candidate == root
             || candidate
                 .strip_prefix(root)
-                .is_some_and(|suffix| suffix.starts_with('/'))
+                .is_ok_and(|suffix| !suffix.as_os_str().is_empty())
     }
 }
 
