@@ -1,0 +1,22 @@
+[package]
+name = "rbx-heal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "rbx-heal"
+path = "src/main.rs"
+
+[dependencies]
+blake3.workspace = true
+clap.workspace = true
+globset.workspace = true
+rbx-heal-core = { path = "../rbx-heal-core" }
+rbx-heal-rules = { path = "../rbx-heal-rules" }
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tempfile.workspace = true
+walkdir.workspace = true

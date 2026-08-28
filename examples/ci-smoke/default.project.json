@@ -1,0 +1,12 @@
+{
+  "name": "rbx-heal-ci-smoke",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Smoke": {
+        "$path": "src/server"
+      }
+    }
+  }
+}

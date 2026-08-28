@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "crates/rbx-heal-core",
+    "crates/rbx-heal-rules",
+    "crates/rbx-heal-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.10.0-rc.1"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+blake3 = "1.8"
+clap = { version = "4.5", features = ["derive"] }
+directories = "6.0"
+getrandom = "0.4.3"
+full_moon = { version = "2.2.0", features = ["luau"] }
+globset = "0.4"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.23"
+thiserror = "2.0"
+toml = "0.9"
+walkdir = "2.5"
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_JobObjects",
+    "Win32_System_IO",
+    "Win32_System_Threading",
+    "Win32_Storage_FileSystem",
+] }

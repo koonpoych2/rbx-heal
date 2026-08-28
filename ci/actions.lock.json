@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "actions": {
+    "actions/checkout": {
+      "ref": "v6",
+      "sha": "d23441a48e516b6c34aea4fa41551a30e30af803"
+    },
+    "dtolnay/rust-toolchain": {
+      "ref": "1.85.0",
+      "sha": "bc540ba06a4ccee415bb241490e0b25ee8e7d315"
+    },
+    "actions/upload-artifact": {
+      "ref": "v4",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    "actions/download-artifact": {
+      "ref": "v5",
+      "sha": "634f93cb2916e3fdff6788551b99b062d0335ce0"
+    },
+    "github/codeql-action": {
+      "ref": "v4",
+      "sha": "fddeee1a7ece751b577e409a89057319e3172939"
+    },
+    "actions/attest": {
+      "ref": "v4",
+      "sha": "1e69f48acb82d1966a394da916b4c1698aa569d6"
+    }
+  }
+}

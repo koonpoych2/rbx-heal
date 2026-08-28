@@ -1,0 +1,280 @@
+name: Production proof gates
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+
+      - name: Install locked verifier tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./ci/install-tools.ps1 -Destination "$env:GITHUB_WORKSPACE\ci\.tools\windows-x86_64"
+          "$env:GITHUB_WORKSPACE\ci\.tools\windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install locked verifier tools (Ubuntu)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash ci/install-tools.sh "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64"
+          echo "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64" >> "$GITHUB_PATH"
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Format verifier helper
+        run: cargo fmt --manifest-path ci/verifier-helper/Cargo.toml -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Workspace and property tests
+        run: cargo test --workspace --locked
+
+      - name: Build verifier helper
+        run: cargo build --manifest-path ci/verifier-helper/Cargo.toml --release --locked
+
+      - name: Verifier helper argv smoke test
+        shell: pwsh
+        run: |
+          $helper = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "ci/verifier-helper/target/release/rbx-heal-verifier-helper.exe" } else { Join-Path $env:GITHUB_WORKSPACE "ci/verifier-helper/target/release/rbx-heal-verifier-helper" }
+          $echo = (& $helper --echo-args "a&b" "space value") -join ""
+          if ($echo -ne ("a&b" + [char]0x1f + "space value")) { throw "verifier helper argv was changed: $echo" }
+
+      - name: Build debug binary
+        run: cargo build --workspace --locked
+
+      - name: JSON and SARIF smoke project
+        shell: pwsh
+        run: |
+          $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/debug/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/debug/rbx-heal" }
+          $jsonPath = Join-Path $env:RUNNER_TEMP "rbx-heal-smoke.json"
+          $sarifPath = Join-Path $env:RUNNER_TEMP "rbx-heal-smoke.sarif"
+          & $binary --project examples/ci-smoke check --format json | Out-File -LiteralPath $jsonPath -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "JSON smoke check failed with $LASTEXITCODE" }
+          & $binary --project examples/ci-smoke check --format sarif | Out-File -LiteralPath $sarifPath -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "SARIF smoke check failed with $LASTEXITCODE" }
+          $report = Get-Content -Raw -LiteralPath $sarifPath | ConvertFrom-Json
+          if ($report.version -ne "2.1.0") { throw "unexpected SARIF version" }
+
+      - name: Runtime dependency policy
+        shell: pwsh
+        run: ./ci/check-runtime-dependencies.ps1
+
+      - name: Release performance gate
+        run: cargo test --workspace --release --locked --test performance -- --ignored
+
+  public-corpus:
+    name: Public corpus (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+    steps:
+      - name: Checkout Heal Engine
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Checkout Roblox resources at pinned commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: Roblox/resources
+          ref: b039dc190675d177dbcebc2ecbc215be992e2ad9
+          path: corpus/roblox-resources
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+
+      - name: Checkout roblox-infected at pinned commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: oh-ashen-one/roblox-infected
+          ref: bc1dfaad043bd2676421adb886ce87a6314de8b7
+          path: corpus/roblox-infected
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+
+      - name: Checkout robloquake at pinned commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: turtlesoupy/robloquake
+          ref: 5e9715f65147305fc79ae083bc3be564880b4def
+          path: corpus/robloquake
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+
+      - name: Install locked verifier tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./ci/install-tools.ps1 -Destination "$env:GITHUB_WORKSPACE\ci\.tools\windows-x86_64"
+          "$env:GITHUB_WORKSPACE\ci\.tools\windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install locked verifier tools (Ubuntu)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash ci/install-tools.sh "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64"
+          echo "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64" >> "$GITHUB_PATH"
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Run public-v1 pilot
+        shell: pwsh
+        env:
+          RBX_HEAL_PILOT_PLANT_ROOT: ${{ github.workspace }}/corpus/roblox-resources/experiences/plant
+          RBX_HEAL_PILOT_INFECTED_ROOT: ${{ github.workspace }}/corpus/roblox-infected
+          RBX_HEAL_PILOT_ROBLOQUAKE_ROOT: ${{ github.workspace }}/corpus/robloquake
+        run: |
+          $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal" }
+          $reportPath = Join-Path $env:RUNNER_TEMP "public-v1-$env:RUNNER_OS.json"
+          $json = & $binary --project $env:GITHUB_WORKSPACE pilot --suite public-v1 --format json
+          $code = $LASTEXITCODE
+          ($json -join [Environment]::NewLine) | Out-File -LiteralPath $reportPath -Encoding utf8
+          if ($code -ne 0) { throw "public-v1 pilot exited with $code" }
+          $report = ($json -join [Environment]::NewLine) | ConvertFrom-Json
+          if (-not $report.official_gate_complete) { throw "public-v1 official gate is incomplete" }
+          if (-not $report.source_unchanged) { throw "public corpus source hash changed" }
+
+      - name: Upload public-v1 report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-v1-report-${{ matrix.os }}
+          path: ${{ runner.temp }}/public-v1-*.json
+          if-no-files-found: error
+
+  public-corpus-compare:
+    name: Compare portable public identities
+    needs: public-corpus
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Download Windows report
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: public-v1-report-windows-2025
+          path: reports/windows
+      - name: Download Ubuntu report
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: public-v1-report-ubuntu-24.04
+          path: reports/ubuntu
+      - name: Compare deterministic fields
+        shell: pwsh
+        run: |
+          $windows = Get-ChildItem reports/windows -Filter "*.json" | Select-Object -First 1
+          $ubuntu = Get-ChildItem reports/ubuntu -Filter "*.json" | Select-Object -First 1
+          ./ci/compare-public-corpus.ps1 -WindowsReport $windows.FullName -UbuntuReport $ubuntu.FullName -Output "$env:RUNNER_TEMP/public-v1-compare.json"
+      - name: Upload comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-v1-cross-os
+          path: ${{ runner.temp }}/public-v1-compare.json
+
+  sarif:
+    name: SARIF upload smoke
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+      - name: Build
+        run: cargo build --locked
+      - name: Generate SARIF and retain exit code
+        shell: bash
+        run: |
+          set +e
+          target/debug/rbx-heal --project examples/ci-smoke check --format sarif > "$RUNNER_TEMP/rbx-heal.sarif"
+          code=$?
+          echo "RBX_HEAL_EXIT_CODE=$code" >> "$GITHUB_ENV"
+          exit 0
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@fddeee1a7ece751b577e409a89057319e3172939 # v4
+        with:
+          sarif_file: ${{ runner.temp }}/rbx-heal.sarif
+          category: rbx-heal-smoke
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rbx-heal-sarif
+          path: ${{ runner.temp }}/rbx-heal.sarif
+      - name: Restore SARIF exit code
+        shell: bash
+        run: exit "$RBX_HEAL_EXIT_CODE"
+
+  sarif-fork-artifact:
+    name: SARIF artifact for fork pull requests
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+      - name: Build and generate SARIF
+        shell: bash
+        run: |
+          set +e
+          cargo run --locked -- --project examples/ci-smoke check --format sarif > "$RUNNER_TEMP/rbx-heal.sarif"
+          code=$?
+          test "$code" -le 1
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rbx-heal-sarif-fork
+          path: ${{ runner.temp }}/rbx-heal.sarif

@@ -1,0 +1,9 @@
+version = 1
+name = "slime_farm"
+root_env = "RBX_HEAL_SLIME_FARM_ROOT"
+default_relative_root = "../Slime farm"
+official_verifiers = ["luau_reparse", "rojo_build"]
+repository = "https://github.com/koonpoych2/RBX-Slime-farm.git"
+commit = "3a43723be2651da45e0f353f77d583b3fc427d66"
+official_gate_requires_rojo = true
+temporary_copy_write_test = true

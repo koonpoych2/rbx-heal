@@ -1,0 +1,14 @@
+[
+  {"rule":"RBX-SEC-001","positive":"remote_sensitive.server.luau","negative":"remote_clean.server.luau","positive_path":"src/server/remote_sensitive.server.luau","negative_path":"src/server/remote_clean.server.luau"},
+  {"rule":"RBX-NET-001","positive":"remote_sensitive.server.luau","negative":"remote_guarded.server.luau","positive_path":"src/server/remote_sensitive.server.luau","negative_path":"src/server/remote_guarded.server.luau"},
+  {"rule":"RBX-DATA-001","positive":"datastore_outside.server.luau","negative":"datastore_owner.DataService.server.luau","positive_path":"src/server/Store.server.luau","negative_path":"src/server/DataService.server.luau"},
+  {"rule":"RBX-DATA-002","positive":"data_failure.server.luau","negative":"remote_clean.server.luau","positive_path":"src/server/data_failure.server.luau","negative_path":"src/server/clean.server.luau"},
+  {"rule":"RBX-DATA-003","positive":"datastore_unprotected.server.luau","negative":"datastore_protected.server.luau","positive_path":"src/server/unprotected.server.luau","negative_path":"src/server/protected.server.luau"},
+  {"rule":"RBX-ARCH-001","positive":"remote_sensitive.server.luau","negative":"protected_owner.EconomyService.server.luau","positive_path":"src/server/Mutation.server.luau","negative_path":"src/server/EconomyService.server.luau"},
+  {"rule":"RBX-PERF-001","positive":"frame_traversal.client.luau","negative":"cached_before_frame.client.luau","positive_path":"src/client/frame.client.luau","negative_path":"src/client/cache.client.luau"},
+  {"rule":"RBX-LIFE-001","positive":"lifecycle_leak.server.luau","negative":"lifecycle_owned.server.luau","positive_path":"src/server/Lifecycle.server.luau","negative_path":"src/server/Owned.server.luau"},
+  {"rule":"RBX-TYPE-001","positive":"remote_clean.server.luau","negative":"strict.server.luau","positive_path":"src/server/Production.server.luau","negative_path":"src/server/Strict.server.luau"},
+  {"rule":"RBX-TASK-001","positive":"legacy_task.luau","negative":"modern_task.luau","positive_path":"src/shared/Legacy.luau","negative_path":"src/shared/Modern.luau"},
+  {"rule":"RBX-API-001","positive":"legacy_aliases.luau","negative":"modern_task.luau","positive_path":"src/shared/Aliases.luau","negative_path":"src/shared/Modern.luau"},
+  {"rule":"RBX-API-002","positive":"legacy_aliases.luau","negative":"modern_task.luau","positive_path":"src/shared/Aliases.luau","negative_path":"src/shared/Modern.luau"}
+]

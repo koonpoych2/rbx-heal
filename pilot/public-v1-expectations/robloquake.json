@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "project": "robloquake",
+  "rule_counts": {
+    "RBX-LIFE-001": 1,
+    "RBX-NET-001": 10,
+    "RBX-PERF-001": 1
+  },
+  "findings": [
+    {"baseline_id":"0e817f3289ac4b3ee65f6d671e125ce49e0f00f9609c5e38d89e9f0317251564","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"46eb1353435a2d10e642ba3c5b1db33e08d918fca6e39d5743dcce41d43404be","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"7a183804a99dcc30baeba60998e811eb289e8990ab9d149378ab741cf94fcb7e","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"9eff81548b91020cdcd866f3e266118842423dc0670e1980d6c6d28a4d94684d","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"ab62b3fc6a1f234161cc329f68e7111ec8338e618fc618a56813de496c5be66b","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"c218dca7ca60fa8126deb1c97b330057035976596528172da518213173a642cf","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"cb8762debaac3852ec0990a7cb957a9f4735f62ce62c8644116aceb27565e3c6","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"e1b9614bba03ac3529d4d3a669d1ef9f6ee39168ee93f41fa088cb5409d17be6","rule_id":"RBX-LIFE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"e2f276f2487102306e034df82bce6b290c9c64276fe04e951adeb5c742e77f43","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"e554bcf476d66c21cf1ef8c0012134533513fe3dcf7585e5766a01a1002867c2","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"ed105fbe0636201b4910449db59fae0b63a919759361d11b5dc7b4440b006bd4","rule_id":"RBX-NET-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"fa74ca5a9af076156624e22e1b4ec1e4f9d981dc03f76e18231a149b9bd9e825","rule_id":"RBX-PERF-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"}
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "project": "roblox-resources-plant",
+  "rule_counts": {
+    "RBX-TYPE-001": 25
+  },
+  "findings": [
+    {"baseline_id":"09077db5d8dbdd4eb65560da024aa781f9a7a5734afc3bbc33711865196f97a1","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"0dea0d14c78b385e94be7563919a8be9f21d84a59113a1818f49dbdc4eca17f2","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"12624ddb2451ca11893008bcaf240837430378d70399dd759357f9442e6c6243","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"18ff0b84e7f7b30aa5e038104ebf9d362a97bab4b364d922965faf86aa4792ac","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"276b24dd1e7ed451f5cf28ce80b8f2bb741ad73b0510eb44c476e3de4c75e4c4","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"2aa375559838493b30daf3be5f9a047ac0e1d49c8ff81fcafc5b9368d5e4158c","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"2c96feff2b0c4e3566054ac4777e28dde72042f9b3199fba8a63abee3d624115","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"2dcec2340673244b099c7aa22d2f11ccc05ca9a36f5d4ad97c3df569b7816cd2","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"4525efe4e36fc668e4f97c8979491163bc88c0cb7bb595eb1e3b688f650d8b86","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"4934b72dbef27a9a048f60bc81e827ba35c545604b4a85eadd34eed32eb35010","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"54aaf1498fb6a1d3314662a11cf988981ad061c29a70243bb8d11ba4ef910a6a","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"5f797cf9a53972a203da32d3b8cc58334ed6d8a042f1c8233f20448206956a1f","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"6ebf6d3f52675320378bfc3935ba3dd9b99b0595479693639f2dcedafb76ad23","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"77a2f49d677d2a4bebf013cbaf5c0125f8c6874701b8446b27a5e80fa35141b1","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"8a702f0d77cd0e9158a9001f3df80044a9456df1f09935e1dcba1fb98e99c144","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"94336a0d49af9548b0cfb5612f52d79a72b85bb235277fc50014016f3e59c084","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"abea49fa98e1617c6aa54192ff09e59337417bf039bb16cd90f4865ffbe70b67","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"adedbb527fafad205d6399dbac7bf179d0be267575023142addd5e2d6f7e1103","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"b826e6963b371e3cc3060239abde016718be31dfcbc5a30032aad2162a82e6de","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"ce0123f8c94646404ba3e148f7ad6db6d2d626d4e6a3448c4d9dbc4ca5dd57d2","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"d04507c721f7be467ddedb4f284201ea6719462b51626ad57d282f64d3a75bbb","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"d303a233da1d2bd0b3623f9dcab8d0e4ffa7433eb5b462f55e6ceee469b6b169","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"da9c2758bc0a050a3d0ae62150e68b79137fea67ca02374eeb0cfe6775f6ded5","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"e7b3b1bba2256b7ed740d92c94de7376770e1259459a9bc33ef19e1233019b1f","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"},
+    {"baseline_id":"f67acc4595a3bea69276464f88c90cffeca290a0c22508548dcb513b2b1e62c4","rule_id":"RBX-TYPE-001","verdict":"true_positive","reason":"reviewed pinned corpus finding"}
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "policy": "official-release-assets-only",
+  "tools": {
+    "rojo": {
+      "version": "7.7.0",
+      "repository": "https://github.com/rojo-rbx/rojo",
+      "assets": {
+        "windows-x86_64": {
+          "url": "https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-windows-x86_64.zip",
+          "sha256": "2179c44862a10ecbd725bdfeb4abc64e16dc4aad9b6c8f3e1a7c46a87280b949"
+        },
+        "ubuntu-x86_64": {
+          "url": "https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-linux-x86_64.zip",
+          "sha256": "22503e5839864f9d7c2171c48b536fc229f2cc4d8774c9cc149f60941d864073"
+        }
+      }
+    },
+    "luau": {
+      "version": "0.735",
+      "repository": "https://github.com/luau-lang/luau",
+      "assets": {
+        "windows-x86_64": {
+          "url": "https://github.com/luau-lang/luau/releases/download/0.735/luau-windows.zip",
+          "sha256": "a809d127b25ed9b28017cc65bcc8f4a6bc880d38740c29e48b15b158d1d35bf3"
+        },
+        "ubuntu-x86_64": {
+          "url": "https://github.com/luau-lang/luau/releases/download/0.735/luau-ubuntu.zip",
+          "sha256": "b8ea2c5dfa229840dd6fa5a16be082b9a3468c82b8b270b7f695a23233e7eceb"
+        }
+      }
+    },
+    "stylua": {
+      "version": "2.5.2",
+      "repository": "https://github.com/JohnnyMorganz/StyLua",
+      "assets": {
+        "windows-x86_64": {
+          "url": "https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-windows-x86_64.zip",
+          "sha256": "e77d0ea1226b8b389b43f702240091249a96eea25857281f90ea24d0eb9eb969"
+        },
+        "ubuntu-x86_64": {
+          "url": "https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-linux-x86_64.zip",
+          "sha256": "bcb0d855e91f102f28a370e850f8566b3b44b79e6274d806ea5246837c0fd5ab"
+        }
+      }
+    }
+  }
+}

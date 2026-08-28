@@ -1,0 +1,17 @@
+version = 1
+
+[scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+  "src/ReplicatedStorage/Dependencies/Freeze/LICENSE.luau",
+  "src/ReplicatedStorage/Dependencies/t/LICENSE.luau",
+]

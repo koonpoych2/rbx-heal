@@ -1,0 +1,29 @@
+version = 1
+
+[scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+]
+
+[architecture]
+datastore_owners = [
+  "**/DataService.lua",
+  "**/DataService.luau",
+  "**/LeaderboardService.lua",
+  "**/LiveConfigService.lua",
+  "src/server/Services/LeaderboardService.luau",
+  "src/server/Services/LiveConfigService.luau",
+  "**/Vendor/ProfileStore.lua",
+  "**/Vendor/ProfileStore.luau",
+  "src/server/Vendor/ProfileStore.luau",
+]
+currency_owners = ["src/server/Services/EconomyService.luau"]

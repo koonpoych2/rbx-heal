@@ -1,0 +1,254 @@
+name: v0.10.0-rc.1 production proof release
+
+on:
+  push:
+    tags:
+      - v0.10.0-rc.1
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  RELEASE_VERSION: 0.10.0-rc.1
+
+jobs:
+  release-gate:
+    name: Release gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04]
+    steps:
+      - name: Checkout Heal Engine
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Checkout Roblox resources
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: Roblox/resources
+          ref: b039dc190675d177dbcebc2ecbc215be992e2ad9
+          path: corpus/roblox-resources
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Checkout roblox-infected
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: oh-ashen-one/roblox-infected
+          ref: bc1dfaad043bd2676421adb886ce87a6314de8b7
+          path: corpus/roblox-infected
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Checkout robloquake
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: turtlesoupy/robloquake
+          ref: 5e9715f65147305fc79ae083bc3be564880b4def
+          path: corpus/robloquake
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+      - name: Install locked verifier tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./ci/install-tools.ps1 -Destination "$env:GITHUB_WORKSPACEci.toolswindows-x86_64"
+          "$env:GITHUB_WORKSPACEci.toolswindows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install locked verifier tools (Ubuntu)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash ci/install-tools.sh "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64"
+          echo "$GITHUB_WORKSPACE/ci/.tools/ubuntu-x86_64" >> "$GITHUB_PATH"
+      - name: Local quality gates
+        shell: pwsh
+        run: ./scripts/quality-gates.ps1
+      - name: Build release binary
+        run: cargo build --release --locked
+      - name: Verify corpus identities and run public-v1 pilot
+        shell: pwsh
+        env:
+          RBX_HEAL_PILOT_PLANT_ROOT: ${{ github.workspace }}/corpus/roblox-resources/experiences/plant
+          RBX_HEAL_PILOT_INFECTED_ROOT: ${{ github.workspace }}/corpus/roblox-infected
+          RBX_HEAL_PILOT_ROBLOQUAKE_ROOT: ${{ github.workspace }}/corpus/robloquake
+        run: |
+          $expected = @(
+            @("corpus/roblox-resources", "b039dc190675d177dbcebc2ecbc215be992e2ad9"),
+            @("corpus/roblox-infected", "bc1dfaad043bd2676421adb886ce87a6314de8b7"),
+            @("corpus/robloquake", "5e9715f65147305fc79ae083bc3be564880b4def")
+          )
+          foreach ($item in $expected) {
+            $actual = (& git -C $item[0] rev-parse HEAD).Trim()
+            if ($actual -ne $item[1]) { throw "corpus commit mismatch for $($item[0])" }
+            if (-not (Test-Path -LiteralPath (Join-Path $item[0] "LICENSE"))) { throw "corpus license missing for $($item[0])" }
+          }
+          $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal" }
+          $reportPath = Join-Path $env:RUNNER_TEMP "public-v1-release-$env:RUNNER_OS.json"
+          $json = & $binary --project $env:GITHUB_WORKSPACE pilot --suite public-v1 --format json
+          $code = $LASTEXITCODE
+          ($json -join [Environment]::NewLine) | Out-File -LiteralPath $reportPath -Encoding utf8
+          if ($code -ne 0) { throw "public-v1 pilot exited with $code" }
+          $report = ($json -join [Environment]::NewLine) | ConvertFrom-Json
+          if (-not $report.official_gate_complete -or -not $report.source_unchanged) { throw "public-v1 gate failed" }
+      - name: Upload release gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-gate-${{ matrix.os }}
+          path: ${{ runner.temp }}/public-v1-release-*.json
+
+  release-gate-compare:
+    name: Compare release gate evidence
+    needs: release-gate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download Windows evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-gate-windows-2025
+          path: reports/windows
+      - name: Download Ubuntu evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-gate-ubuntu-24.04
+          path: reports/ubuntu
+      - name: Compare portable identities
+        shell: pwsh
+        run: |
+          $windows = Get-ChildItem reports/windows -Filter "*.json" | Select-Object -First 1
+          $ubuntu = Get-ChildItem reports/ubuntu -Filter "*.json" | Select-Object -First 1
+          ./ci/compare-public-corpus.ps1 -WindowsReport $windows.FullName -UbuntuReport $ubuntu.FullName
+
+  build-artifact:
+    name: Build ${{ matrix.platform }} archive
+    needs: release-gate-compare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: windows-x86_64
+          - os: ubuntu-24.04
+            platform: ubuntu-x86_64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+        with:
+          toolchain: 1.85.0
+      - name: Build release binary
+        run: cargo build --release --locked
+      - name: Windows smoke and package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          SOURCE_DATE_EPOCH: "946684800"
+        run: |
+          & target/release/rbx-heal.exe --version
+          & target/release/rbx-heal.exe --project examples/ci-smoke doctor --format json
+          ./ci/package-release.ps1 -Version $env:RELEASE_VERSION -Platform windows-x86_64 -BinaryPath target/release/rbx-heal.exe
+      - name: Ubuntu smoke and package
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          SOURCE_DATE_EPOCH: "946684800"
+        run: |
+          set -euo pipefail
+          target/release/rbx-heal --version
+          target/release/rbx-heal --project examples/ci-smoke doctor --format json
+          bash ci/package-release.sh "$RELEASE_VERSION" ubuntu-x86_64 target/release/rbx-heal
+      - name: Upload platform archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Validate, attest, and publish prerelease
+    needs: [release-gate-compare, build-artifact]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download Windows archive
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-windows-x86_64
+          path: dist
+      - name: Download Ubuntu archive
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-ubuntu-x86_64
+          path: dist
+      - name: Download Windows gate evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-gate-windows-2025
+          path: evidence/windows
+      - name: Download Ubuntu gate evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-gate-ubuntu-24.04
+          path: evidence/ubuntu
+      - name: Build aggregate quality report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/aggregate-pilot-report.py evidence/windows/*.json evidence/ubuntu/*.json \
+            --output "dist/rbx-heal-v$RELEASE_VERSION-quality.json" --version "$RELEASE_VERSION"
+      - name: Validate checksums and smoke archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find dist -maxdepth 1 -name '*.zip' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+          (cd dist && sha256sum -c ./*.sha256)
+          rm -rf unpack-windows unpack-ubuntu
+          mkdir unpack-windows unpack-ubuntu
+          unzip -q dist/*.zip -d unpack-windows
+          tar -xzf dist/*.tar.gz -C unpack-ubuntu
+          unpack-ubuntu/rbx-heal --version
+          unpack-ubuntu/rbx-heal --project unpack-ubuntu doctor --format json
+          test -s dist/*provenance.json
+      - name: Attest Windows archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*.zip
+      - name: Attest Ubuntu archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*.tar.gz
+      - name: Verify attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh attestation verify dist/*.zip --repo "$GITHUB_REPOSITORY"
+          gh attestation verify dist/*.tar.gz --repo "$GITHUB_REPOSITORY"
+      - name: Publish single prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --verify-tag --prerelease --title "rbx-heal $GITHUB_REF_NAME" --notes "Production proof release with checksums, provenance, and attestations." dist/*

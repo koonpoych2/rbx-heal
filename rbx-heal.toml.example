@@ -1,0 +1,52 @@
+version = 1
+
+[scan]
+roots = ["src"]
+include = ["**/*.luau", "**/*.lua"]
+exclude = [".git/**", "build/**", "node_modules/**", "Packages/**", "ServerPackages/**", "**/generated/**", "**/*.generated.lua", "**/*.generated.luau"]
+
+[scope]
+server = ["**/server/**", "**/*.server.lua", "**/*.server.luau"]
+client = ["**/client/**", "**/*.client.lua", "**/*.client.luau"]
+shared = ["**/shared/**"]
+production = ["**/*.lua", "**/*.luau"]
+
+[architecture]
+datastore_owners = ["**/*DataService*.lua", "**/*DataService*.luau"]
+datastore_protectors = ["pcall", "xpcall"]
+currency_owners = ["**/*EconomyService*.lua", "**/*EconomyService*.luau"]
+protected_fields = ["money", "Money", "cash", "Cash", "coins", "Coins", "currency", "Currency", "pendingCash"]
+sensitive_sinks = ["AddMoney", "GiveMoney", "AddCurrency", "GrantReward", "GiveReward", "GrantItem"]
+remote_guards = ["RateLimiter", "RateLimit", "canTouch", "Cooldown", "Debounce"]
+lifecycle_signals = ["PlayerAdded", "CharacterAdded", "OnClientEvent", "OnServerEvent"]
+frame_signals = ["Heartbeat", "RenderStepped", "Stepped", "PreSimulation", "PostSimulation"]
+
+# Example:
+# [rules.RBX-TYPE-001]
+# enabled = true
+# severity = "warning"
+
+# Example path suppression:
+# [[suppressions]]
+# rule = "RBX-PERF-001"
+# path = "src/client/Controllers/Legacy.luau"
+# reason = "bounded by the scene contract"
+
+[verify]
+default_timeout_ms = 30000
+max_output_bytes = 32768
+
+[[verify.commands]]
+kind = "rojo_build"
+name = "rojo-build"
+program = "rojo"
+args = ["build", "default.project.json", "-o", "{temp}/rbx-heal-verify.rbxlx"]
+timeout_ms = 60000
+required = false
+# Optional trust pins used by CI. Values must match the resolved executable.
+# expected_version = "7.7.0"
+# expected_sha256 = "<64 hexadecimal characters>"
+
+[policy]
+# Findings at or above this level make check/fix return exit code 1.
+fail_on = "warning"

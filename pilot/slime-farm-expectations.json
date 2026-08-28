@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "pilot": "slime_farm",
+  "expectations": {
+    "data_load_failure_default_found": true,
+    "two_unguarded_server_remotes_found": true,
+    "data_service_has_no_owner_violation": true,
+    "conveyor_has_no_frame_traversal": true
+  },
+  "source_policy": {
+    "hash_luau_before_and_after": true,
+    "write_only_temporary_copy": true
+  }
+}

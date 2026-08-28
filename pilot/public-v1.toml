@@ -1,0 +1,101 @@
+schema_version = 1
+suite = "public-v1"
+min_error_precision = 1.0
+min_warning_precision = 0.9
+
+[source_policy]
+hash_luau_before_and_after = true
+write_only_temporary_copy = true
+
+[[projects]]
+id = "roblox-resources-plant"
+repository = "https://github.com/Roblox/resources.git"
+commit = "b039dc190675d177dbcebc2ecbc215be992e2ad9"
+license = "MIT"
+root_env = "RBX_HEAL_PILOT_PLANT_ROOT"
+expectations = "plant"
+required_verifiers = ["luau_reparse", "rojo_build"]
+
+[projects.config.scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+  "src/ReplicatedStorage/Dependencies/Freeze/LICENSE.luau",
+  "src/ReplicatedStorage/Dependencies/t/LICENSE.luau",
+]
+
+[[projects]]
+id = "roblox-infected"
+repository = "https://github.com/oh-ashen-one/roblox-infected.git"
+commit = "bc1dfaad043bd2676421adb886ce87a6314de8b7"
+license = "MIT"
+root_env = "RBX_HEAL_PILOT_INFECTED_ROOT"
+expectations = "infected"
+required_verifiers = ["luau_reparse", "rojo_build"]
+
+[projects.config.scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+]
+
+[projects.config.architecture]
+datastore_owners = [
+  "**/DataService.lua",
+  "**/DataService.luau",
+  "**/LeaderboardService.lua",
+  "**/LiveConfigService.lua",
+  "src/server/Services/LeaderboardService.luau",
+  "src/server/Services/LiveConfigService.luau",
+  "**/Vendor/ProfileStore.lua",
+  "**/Vendor/ProfileStore.luau",
+  "src/server/Vendor/ProfileStore.luau",
+]
+currency_owners = ["src/server/Services/EconomyService.luau"]
+
+[[projects]]
+id = "robloquake"
+repository = "https://github.com/turtlesoupy/robloquake.git"
+commit = "5e9715f65147305fc79ae083bc3be564880b4def"
+license = "GPL-2.0"
+root_env = "RBX_HEAL_PILOT_ROBLOQUAKE_ROOT"
+expectations = "robloquake"
+required_verifiers = ["luau_reparse", "rojo_build"]
+
+[projects.config.scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+]
+
+[projects.config.architecture]
+datastore_owners = [
+  "src/server/onboarding.luau",
+  "src/server/prefstore.luau",
+  "src/server/statstore.luau",
+]
+currency_owners = ["src/server/statstore.luau"]

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/koonpoych2/RBX-Slime-farm.git",
+  "commit": "3a43723be2651da45e0f353f77d583b3fc427d66",
+  "checkout_policy": "read_only_source_temporary_copy_for_writes"
+}

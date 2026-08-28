@@ -1,0 +1,8 @@
+/target/
+/dist/
+/corpus/
+/.rbx-heal/
+/ci/.tools/
+/.tools/
+/ci/verifier-helper/target/
+*.rbx-heal.tmp

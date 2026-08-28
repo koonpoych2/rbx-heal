@@ -1,0 +1,23 @@
+version = 1
+
+[scan]
+roots = ["src"]
+include = ["**/*.lua", "**/*.luau"]
+exclude = [
+  ".git/**",
+  "build/**",
+  "node_modules/**",
+  "Packages/**",
+  "ServerPackages/**",
+  "**/generated/**",
+  "**/*.generated.lua",
+  "**/*.generated.luau",
+]
+
+[architecture]
+datastore_owners = [
+  "src/server/onboarding.luau",
+  "src/server/prefstore.luau",
+  "src/server/statstore.luau",
+]
+currency_owners = ["src/server/statstore.luau"]
