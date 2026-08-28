@@ -208,7 +208,7 @@ fn is_within(root: &Path, candidate: &Path) -> bool {
         candidate == root
             || candidate
                 .strip_prefix(root)
-                .is_some_and(|suffix| suffix.starts_with('/'))
+                .is_ok_and(|suffix| !suffix.as_os_str().is_empty())
     }
 }
 
