@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StableCandidateV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_tag", "stable_tag", "required_scheduled_runs"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "candidate_tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$" },
+    "stable_tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "required_scheduled_runs": { "type": "integer", "minimum": 1 }
+  }
+}

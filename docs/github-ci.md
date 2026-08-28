@@ -2,7 +2,8 @@
 
 The production-proof workflow runs on windows-2025 and ubuntu-24.04, checks the
 pinned public-v1 corpus, compares portable finding identities across platforms,
-and uploads a SARIF smoke report. The checked-in workflow is deliberately the
+and uploads a clean SARIF smoke report. Suppression behavior is covered by a
+separate local-only fixture and is never uploaded to Code Scanning. The checked-in workflow is deliberately the
 source of truth; it does not execute scripts from checked-out corpus
 repositories.
 
@@ -25,8 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315
-        with:
-          toolchain: 1.85.0
       - run: cargo run --locked --release -- check --format json > heal-report.json
         id: heal
         continue-on-error: true
@@ -45,6 +44,11 @@ GitHub Code Scanning accepts SARIF 2.1.0 ([SARIF support reference](https://docs
 continue-on-error so the report is uploaded even when the policy returns exit
 code 1, then restore that exit code afterwards:
 
+The production workflow runs `ci/validate-sarif.py` before upload. It requires
+the smoke result set to be empty and rejects absolute URIs, runner paths, and
+source-bearing SARIF fields. Suppression coverage stays in
+`examples/ci-smoke-suppressed` and is never uploaded.
+
 ~~~yaml
 name: Roblox Heal SARIF
 on: [push, pull_request]
@@ -57,8 +61,6 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315
-        with:
-          toolchain: 1.85.0
       - name: Scan
         id: heal
         shell: bash
@@ -81,3 +83,23 @@ jobs:
 For private repositories, enable GitHub Code Security before using the SARIF
 workflow. If a scan is larger than the GitHub SARIF result limit, split the
 scan or use the JSON workflow instead.
+
+## RC qualification and release preflight
+
+The scheduled job reads `ci/stable-candidate.json` and checks out that protected
+tag before running the same quality and corpus gates. A successful run emits
+only `StableQualificationRunV1` metadata. After seven first-attempt green UTC
+days, download the run metadata and artifacts and verify them offline:
+
+~~~text
+python ci/verify-stability-streak.py --runs scheduled-runs.json \
+  --evidence-dir stability-evidence --candidate-tag v0.10.0-rc.2 \
+  --candidate-commit <sha> --required-runs 7 \
+  --output rbx-heal-v0.10.0-stability.json
+~~~
+
+The release workflow accepts any `v*` tag and defaults manual dispatch to a
+non-publishing preflight. Publishing is enabled only for an existing protected
+tag. `v0.10.0` additionally requires the streak proof, RC2 as its direct
+parent, and a version-only diff; no tag or stable release is created
+automatically.

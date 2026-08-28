@@ -312,3 +312,36 @@ fn sarif_uses_relative_percent_encoded_uris_for_unicode_paths() {
         .iter()
         .all(|uri| !uri.contains(dir.path().to_string_lossy().as_ref())));
 }
+
+#[test]
+fn uploaded_smoke_is_clean_but_local_suppression_fixture_is_preserved() {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let clean_root = workspace.join("examples/ci-smoke");
+    let clean = run(&clean_root, &["check", "--format", "sarif"]);
+    assert!(
+        clean.status.success(),
+        "clean smoke failed: {:?}",
+        clean.stderr
+    );
+    let clean_json: Value = serde_json::from_slice(&clean.stdout).unwrap();
+    assert_eq!(
+        clean_json["runs"][0]["results"].as_array().unwrap().len(),
+        0
+    );
+
+    let suppressed_root = workspace.join("examples/ci-smoke-suppressed");
+    let suppressed = run(&suppressed_root, &["check", "--format", "sarif"]);
+    assert!(
+        suppressed.status.success(),
+        "suppression fixture failed: {:?}",
+        suppressed.stderr
+    );
+    let suppressed_json: Value = serde_json::from_slice(&suppressed.stdout).unwrap();
+    assert_eq!(
+        suppressed_json["runs"][0]["results"][0]["suppressions"][0]["kind"],
+        "inSource"
+    );
+}

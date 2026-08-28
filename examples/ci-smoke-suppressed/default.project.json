@@ -1,0 +1,12 @@
+{
+  "name": "rbx-heal-suppressed-fixture",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Smoke.server": {
+        "$path": "src/server"
+      }
+    }
+  }
+}

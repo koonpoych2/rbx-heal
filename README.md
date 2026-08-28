@@ -1,8 +1,8 @@
-# Roblox Heal Engine 0.10.0-rc.1 — Production Proof Release
+# Roblox Heal Engine 0.10.0-rc.2 — Stable Qualification Candidate
 
 `rbx-heal` is a local, deterministic Luau diagnostics and safe-fix CLI for Roblox projects. It parses Luau without an LLM, reports server-authority/data/performance risks, and only writes guarded mechanical edits after verification.
 
-The 0.10.0-rc.1 production-proof release validates the adoption workflow on
+The 0.10.0-rc.2 candidate validates the adoption workflow on
 public pinned corpus projects, cross-platform CI, deterministic artifacts, and
 SARIF upload. It keeps portable baselines, named remote handler coverage, and a conservative DataStore error-boundary rule on top of
 the 0.8.0 project-boundary, crash-recovery, verifier-identity, privacy-safe
@@ -93,9 +93,18 @@ not installed (an Aftman shim is not accepted as Rojo).
 
 The warm-cache synthetic gate (470 × 213-line Luau modules, about 100k LOC) completed in under one second wall time on the development machine.
 
-The 0.10.0-rc.1 release workflow produces unsigned Windows x64 and Ubuntu x64
+The 0.10.0-rc.2 release workflow produces unsigned Windows x64 and Ubuntu x64
 archives with checksums, provenance manifests, and attestations. Copy-ready generic JSON and
 SARIF GitHub Actions examples are in docs/github-ci.md.
+
+Scheduled CI qualifies this exact candidate for seven consecutive UTC days.
+Each successful run writes only a metadata-only `StableQualificationRunV1`
+artifact. Stable promotion is manual and requires the offline
+`ci/verify-stability-streak.py` proof plus a version-only commit after RC2.
+The uploaded `rbx-heal-smoke` SARIF is intentionally empty; suppression
+coverage is tested locally and is never dismissed as a Code Scanning alert.
+CI validates that uploaded SARIF has no findings, runner paths, or embedded
+source content before it reaches Code Scanning.
 
 The public-v1 pilot is manifest-driven and read-only. CI checks out pinned
 public repositories and passes their canonical roots through environment
