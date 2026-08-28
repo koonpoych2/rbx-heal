@@ -29,7 +29,9 @@ function Comparable([object]$Report) {
             license = $_.license
             status = $_.status
             files_scanned = $_.files_scanned
-            bytes_scanned = $_.bytes_scanned
+            # Source byte counts are deliberately not portable: Git may check
+            # out LF files on Ubuntu and CRLF files on Windows.  The gate is
+            # about semantic findings and identities, not checkout encoding.
             findings = $_.findings
             parse_errors = $_.parse_errors
             rule_counts = $_.rule_counts
