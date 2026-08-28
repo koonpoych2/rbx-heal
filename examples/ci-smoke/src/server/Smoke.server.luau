@@ -1,3 +1,7 @@
 --!strict
--- rbx-heal: ignore RBX-TASK-001 -- intentional suppressed-result SARIF fixture
-wait(0)
+
+local function smoke(value: number): number
+	return value + 1
+end
+
+return smoke(41)

@@ -15,8 +15,59 @@ env:
   RUST_BACKTRACE: "1"
 
 jobs:
+  resolve-source:
+    name: Resolve CI source
+    runs-on: ubuntu-24.04
+    outputs:
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      candidate_tag: ${{ steps.source.outputs.candidate_tag }}
+      candidate_commit: ${{ steps.source.outputs.candidate_commit }}
+    steps:
+      - name: Checkout workflow source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true
+      - name: Resolve protected scheduled candidate
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+            candidate_tag="$(python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          data = json.loads(Path("ci/stable-candidate.json").read_text(encoding="utf-8"))
+          expected_keys = {"schema_version", "candidate_tag", "stable_tag", "required_scheduled_runs"}
+          if not isinstance(data, dict) or set(data) != expected_keys:
+              raise SystemExit("invalid stable candidate manifest fields")
+          if data.get("schema_version") != 1 or not re.fullmatch(r"v\d+\.\d+\.\d+-rc\.\d+", data.get("candidate_tag", "")):
+              raise SystemExit("invalid stable candidate manifest")
+          if data.get("stable_tag") != "v0.10.0" or data.get("required_scheduled_runs") != 7:
+              raise SystemExit("unexpected stable candidate manifest")
+          print(data["candidate_tag"])
+          PY
+            )"
+            candidate_commit="$(git ls-remote origin "refs/tags/${candidate_tag}^{}" | awk 'NR == 1 {print $1}')"
+            if [[ ! "$candidate_commit" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              candidate_commit="$(git ls-remote origin "refs/tags/${candidate_tag}" | awk 'NR == 1 {print $1}')"
+            fi
+            if [[ ! "$candidate_commit" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "protected candidate tag does not resolve: $candidate_tag" >&2
+              exit 2
+            fi
+            echo "source_ref=$candidate_tag" >> "$GITHUB_OUTPUT"
+            echo "candidate_tag=$candidate_tag" >> "$GITHUB_OUTPUT"
+            echo "candidate_commit=$candidate_commit" >> "$GITHUB_OUTPUT"
+          else
+            echo "source_ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "candidate_tag=" >> "$GITHUB_OUTPUT"
+            echo "candidate_commit=" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     name: Quality (${{ matrix.os }})
+    needs: resolve-source
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,6 +77,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
@@ -59,6 +111,22 @@ jobs:
       - name: Workspace and property tests
         run: cargo test --workspace --locked
 
+      - name: Stable qualification verifier tests
+        shell: pwsh
+        run: |
+          $python = $null
+          foreach ($name in @("python", "python3")) {
+            $candidate = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate -and -not [string]::IsNullOrWhiteSpace($candidate.Source) -and (Test-Path -LiteralPath $candidate.Source -PathType Leaf)) { $python = $candidate.Source; break }
+          }
+          if (-not $python) { throw "Python is required for stability verifier tests" }
+          & $python ci/test_verify_stability_streak.py
+          if ($LASTEXITCODE -ne 0) { throw "stability verifier tests failed" }
+          & $python ci/test_compare_sarif.py
+          if ($LASTEXITCODE -ne 0) { throw "SARIF comparison tests failed" }
+          & $python ci/test_validate_sarif.py
+          if ($LASTEXITCODE -ne 0) { throw "SARIF privacy validation tests failed" }
+
       - name: Build verifier helper
         run: cargo build --manifest-path ci/verifier-helper/Cargo.toml --release --locked
 
@@ -84,6 +152,46 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "SARIF smoke check failed with $LASTEXITCODE" }
           $report = Get-Content -Raw -LiteralPath $sarifPath | ConvertFrom-Json
           if ($report.version -ne "2.1.0") { throw "unexpected SARIF version" }
+          if ($report.runs[0].results.Count -ne 0) { throw "upload smoke SARIF must be clean" }
+          $jsonReport = Get-Content -Raw -LiteralPath $jsonPath | ConvertFrom-Json
+          if ($jsonReport.findings.Count -ne 0) { throw "upload smoke JSON must be clean" }
+          if ((Get-Content -Raw -LiteralPath $sarifPath) -match [regex]::Escape($env:GITHUB_WORKSPACE)) { throw "SARIF leaked an absolute path" }
+          $python = $null
+          foreach ($name in @("python", "python3")) {
+            $candidate = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate -and -not [string]::IsNullOrWhiteSpace($candidate.Source) -and (Test-Path -LiteralPath $candidate.Source -PathType Leaf)) { $python = $candidate.Source; break }
+          }
+          if (-not $python) { throw "Python is required for SARIF privacy validation" }
+          & $python ci/validate-sarif.py $sarifPath --expect-results 0
+          if ($LASTEXITCODE -ne 0) { throw "SARIF privacy validation failed" }
+
+      - name: Suppression fixture stays local-only
+        shell: pwsh
+        run: |
+          $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/debug/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/debug/rbx-heal" }
+          $sarif = & $binary --project examples/ci-smoke-suppressed check --format sarif
+          if ($LASTEXITCODE -ne 0) { throw "suppression fixture check failed with $LASTEXITCODE" }
+          $report = ($sarif -join [Environment]::NewLine) | ConvertFrom-Json
+          $result = $report.runs[0].results | Select-Object -First 1
+          if ($null -eq $result -or $result.suppressions[0].kind -ne "inSource") { throw "suppression fixture must retain inSource suppression" }
+          $python = $null
+          foreach ($name in @("python", "python3")) {
+            $candidate = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate -and -not [string]::IsNullOrWhiteSpace($candidate.Source) -and (Test-Path -LiteralPath $candidate.Source -PathType Leaf)) { $python = $candidate.Source; break }
+          }
+          if (-not $python) { throw "Python is required for SARIF privacy validation" }
+          $suppressedPath = Join-Path $env:RUNNER_TEMP "rbx-heal-suppressed.sarif"
+          $sarif -join [Environment]::NewLine | Out-File -LiteralPath $suppressedPath -Encoding utf8
+          & $python ci/validate-sarif.py $suppressedPath --expect-results 1
+          if ($LASTEXITCODE -ne 0) { throw "suppression SARIF privacy validation failed" }
+
+      - name: Save clean SARIF for cross-platform comparison
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rbx-heal-sarif-${{ matrix.os }}
+          path: ${{ runner.temp }}/rbx-heal-smoke.sarif
+          if-no-files-found: error
 
       - name: Runtime dependency policy
         shell: pwsh
@@ -94,6 +202,7 @@ jobs:
 
   public-corpus:
     name: Public corpus (${{ matrix.os }})
+    needs: resolve-source
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -103,6 +212,7 @@ jobs:
       - name: Checkout Heal Engine
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
           persist-credentials: false
 
       - name: Checkout Roblox resources at pinned commit
@@ -181,12 +291,13 @@ jobs:
 
   public-corpus-compare:
     name: Compare portable public identities
-    needs: public-corpus
+    needs: [resolve-source, public-corpus]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
           persist-credentials: false
       - name: Download Windows report
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -210,8 +321,43 @@ jobs:
           name: public-v1-cross-os
           path: ${{ runner.temp }}/public-v1-compare.json
 
+  sarif-compare:
+    name: Compare SARIF deterministic fields
+    needs: [resolve-source, quality]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
+          persist-credentials: false
+      - name: Download Windows SARIF
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: rbx-heal-sarif-windows-2025
+          path: reports/windows
+      - name: Download Ubuntu SARIF
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: rbx-heal-sarif-ubuntu-24.04
+          path: reports/ubuntu
+      - name: Compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          windows="$(find reports/windows -type f -name '*.sarif' | head -n 1)"
+          ubuntu="$(find reports/ubuntu -type f -name '*.sarif' | head -n 1)"
+          [[ -n "$windows" && -n "$ubuntu" ]] || { echo "SARIF comparison artifacts are missing" >&2; exit 2; }
+          python3 ci/compare-sarif.py --windows "$windows" --ubuntu "$ubuntu" --output "$RUNNER_TEMP/sarif-compare.json"
+      - name: Upload comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rbx-heal-sarif-compare
+          path: ${{ runner.temp }}/sarif-compare.json
+
   sarif:
     name: SARIF upload smoke
+    needs: resolve-source
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     permissions:
@@ -221,6 +367,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
           persist-credentials: false
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
@@ -234,11 +381,30 @@ jobs:
           code=$?
           echo "RBX_HEAL_EXIT_CODE=$code" >> "$GITHUB_ENV"
           exit 0
+      - name: Validate upload SARIF
+        shell: bash
+        run: python3 ci/validate-sarif.py "$RUNNER_TEMP/rbx-heal.sarif" --expect-results 0
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@fddeee1a7ece751b577e409a89057319e3172939 # v4
         with:
           sarif_file: ${{ runner.temp }}/rbx-heal.sarif
           category: rbx-heal-smoke
+      - name: Assert uploaded smoke has no open alert
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            count="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100" --jq '[.[] | select(.most_recent_instance.category == "rbx-heal-smoke")] | length' | awk '{ total += $1 } END { print total + 0 }')"
+            if [[ "$count" == "0" ]]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "rbx-heal-smoke still has open code-scanning alerts" >&2
+          exit 1
       - name: Upload SARIF artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -251,11 +417,14 @@ jobs:
 
   sarif-fork-artifact:
     name: SARIF artifact for fork pull requests
+    needs: resolve-source
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
       - name: Build and generate SARIF
@@ -265,8 +434,69 @@ jobs:
           cargo run --locked -- --project examples/ci-smoke check --format sarif > "$RUNNER_TEMP/rbx-heal.sarif"
           code=$?
           test "$code" -le 1
+          python3 ci/validate-sarif.py "$RUNNER_TEMP/rbx-heal.sarif" --expect-results 0
       - name: Upload SARIF artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rbx-heal-sarif-fork
           path: ${{ runner.temp }}/rbx-heal.sarif
+
+  stable-qualification:
+    name: Record stable qualification run
+    if: github.event_name == 'schedule'
+    needs: [resolve-source, quality, public-corpus, public-corpus-compare, sarif, sarif-compare]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout protected candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-source.outputs.source_ref }}
+          persist-credentials: false
+      - name: Write metadata-only qualification evidence
+        shell: bash
+        env:
+          CANDIDATE_TAG: ${{ needs.resolve-source.outputs.candidate_tag }}
+          CANDIDATE_COMMIT: ${{ needs.resolve-source.outputs.candidate_commit }}
+          RUN_CREATED_AT: ${{ github.run_started_at }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          [[ "$commit" == "$CANDIDATE_COMMIT" ]] || { echo "candidate checkout mismatch" >&2; exit 2; }
+          mkdir -p "$RUNNER_TEMP/stable-qualification"
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          gates = {
+              "quality_windows": "passed",
+              "quality_ubuntu": "passed",
+              "public_corpus_windows": "passed",
+              "public_corpus_ubuntu": "passed",
+              "portable_identity_compare": "passed",
+              "sarif_deterministic": "passed",
+              "performance": "passed",
+              "sarif_upload": "passed",
+          }
+          record = {
+              "schema_version": 1,
+              "kind": "StableQualificationRunV1",
+              "candidate_tag": os.environ["CANDIDATE_TAG"],
+              "candidate_commit": os.environ["CANDIDATE_COMMIT"].lower(),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "created_at_utc": os.environ.get("RUN_CREATED_AT") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "event": "schedule",
+              "status": "passed",
+              "gates": gates,
+          }
+          Path(os.environ["RUNNER_TEMP"], "stable-qualification", "StableQualificationRunV1.json").write_text(
+              json.dumps(record, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Upload qualification evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-qualification-run-${{ github.run_id }}
+          path: ${{ runner.temp }}/stable-qualification/StableQualificationRunV1.json
+          if-no-files-found: error

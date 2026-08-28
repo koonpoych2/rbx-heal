@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "candidate_tag": "v0.10.0-rc.2",
+  "stable_tag": "v0.10.0",
+  "required_scheduled_runs": 7
+}

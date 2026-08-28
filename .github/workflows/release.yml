@@ -1,16 +1,26 @@
-name: v0.10.0-rc.1 production proof release
+name: Release proof and publication
 
 on:
   push:
     tags:
-      - v0.10.0-rc.1
+      - "v*"
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: Existing protected release tag to validate and publish
+      source_ref:
+        description: Source branch, tag, or commit to validate
         required: true
-        default: v0.10.0-rc.1
+        default: main
         type: string
+      release_tag:
+        description: Release tag to validate (for example v0.10.0-rc.2)
+        required: true
+        default: v0.10.0-rc.2
+        type: string
+      publish:
+        description: Publish a protected tag release after all gates pass
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -18,22 +28,113 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
-  RELEASE_VERSION: 0.10.0-rc.1
-  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
+  resolve-release:
+    name: Resolve release identity
+    runs-on: ubuntu-24.04
+    outputs:
+      source_ref: ${{ steps.resolve.outputs.source_ref }}
+      source_commit: ${{ steps.resolve.outputs.source_commit }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      release_version: ${{ steps.resolve.outputs.release_version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      publish: ${{ steps.resolve.outputs.publish }}
+      candidate_tag: ${{ steps.resolve.outputs.candidate_tag }}
+      candidate_commit: ${{ steps.resolve.outputs.candidate_commit }}
+      required_scheduled_runs: ${{ steps.resolve.outputs.required_scheduled_runs }}
+    steps:
+      - name: Checkout requested source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
+      - name: Validate tag, Cargo version, and protected identity
+        id: resolve
+        shell: bash
+        env:
+          SOURCE_REF_INPUT: ${{ inputs.source_ref || github.ref }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag || github.ref_name }}
+          PUBLISH_INPUT: ${{ inputs.publish || false }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          source_ref="$SOURCE_REF_INPUT"
+          release_tag="$RELEASE_TAG_INPUT"
+          [[ -n "$source_ref" && -n "$release_tag" ]] || { echo "source_ref and release_tag are required" >&2; exit 2; }
+          [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "invalid release tag: $release_tag" >&2; exit 2; }
+          version="${release_tag#v}"
+          source_commit="$(git rev-parse HEAD)"
+          metadata="$(cargo metadata --no-deps --format-version 1)"
+          printf '%s' "$metadata" | python3 -c 'import json,sys; expected=sys.argv[1]; data=json.load(sys.stdin); versions={package["version"] for package in data.get("packages", [])}; raise SystemExit(f"workspace versions {sorted(versions)!r} do not match {expected!r}") if not versions or versions != {expected} else None' "$version"
+          publish=false
+          if [[ "$EVENT_NAME" == "push" ]]; then publish=true; elif [[ "$PUBLISH_INPUT" == "true" ]]; then publish=true; fi
+          if [[ "$publish" == "true" ]]; then
+            remote_tag_commit="$(git ls-remote origin "refs/tags/${release_tag}^{}" | awk 'NR == 1 {print $1}')"
+            if [[ ! "$remote_tag_commit" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              remote_tag_commit="$(git ls-remote origin "refs/tags/${release_tag}" | awk 'NR == 1 {print $1}')"
+            fi
+            [[ "$remote_tag_commit" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "protected remote tag is missing: $release_tag" >&2; exit 2; }
+            [[ "$remote_tag_commit" == "$source_commit" ]] || { echo "remote tag does not point at source commit" >&2; exit 2; }
+          fi
+          candidate_tag=""
+          candidate_commit=""
+          required_scheduled_runs=""
+          if [[ "$release_tag" == "v0.10.0" ]]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("ci/stable-candidate.json").read_text(encoding="utf-8"))
+          expected = {"schema_version": 1, "candidate_tag": "v0.10.0-rc.2", "stable_tag": "v0.10.0", "required_scheduled_runs": 7}
+          if data != expected:
+              raise SystemExit("unknown or unexpected stable candidate manifest")
+            PY
+            candidate_tag="v0.10.0-rc.2"
+            required_scheduled_runs="7"
+            candidate_commit="$(git rev-parse "refs/tags/${candidate_tag}^{commit}" 2>/dev/null || true)"
+            [[ "$candidate_commit" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "stable candidate tag is unavailable" >&2; exit 2; }
+            parent="$(git rev-list --parents -n 1 "$source_commit" | awk '{print $2}')"
+            [[ "$(git rev-list --parents -n 1 "$source_commit" | awk '{print NF}')" == "2" ]] || { echo "stable source must be a single-parent version commit" >&2; exit 2; }
+            [[ "$parent" == "$candidate_commit" ]] || { echo "stable source must have RC2 as its direct parent" >&2; exit 2; }
+            [[ "$(git rev-list --count "$candidate_commit..$source_commit")" == "1" ]] || { echo "stable source must contain exactly one commit after RC2" >&2; exit 2; }
+            while IFS= read -r changed; do
+              case "$changed" in
+                Cargo.toml|Cargo.lock|README.md|CHANGELOG.md) ;;
+                *) echo "stable diff is outside the version-only allowlist: $changed" >&2; exit 2 ;;
+              esac
+            done < <(git diff --name-only "$candidate_commit" "$source_commit")
+          fi
+          echo "source_ref=$source_commit" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "release_version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([[ "$version" == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=$candidate_tag" >> "$GITHUB_OUTPUT"
+          echo "candidate_commit=$candidate_commit" >> "$GITHUB_OUTPUT"
+          echo "required_scheduled_runs=$required_scheduled_runs" >> "$GITHUB_OUTPUT"
+
   release-gate:
     name: Release gate (${{ matrix.os }})
+    needs: resolve-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [windows-2025, ubuntu-24.04]
+    permissions:
+      contents: read
+      actions: read
+      security-events: read
     steps:
-      - name: Checkout Heal Engine
+      - name: Checkout release source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.resolve-release.outputs.source_ref }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Checkout Roblox resources
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -82,9 +183,7 @@ jobs:
       - name: Local quality gates
         shell: pwsh
         run: ./scripts/quality-gates.ps1
-      - name: Build release binary
-        run: cargo build --release --locked
-      - name: Verify corpus identities and run public-v1 pilot
+      - name: Verify corpus identity and pilot
         shell: pwsh
         env:
           RBX_HEAL_PILOT_PLANT_ROOT: ${{ github.workspace }}/corpus/roblox-resources/experiences/plant
@@ -109,22 +208,56 @@ jobs:
           if ($code -ne 0) { throw "public-v1 pilot exited with $code" }
           $report = ($json -join [Environment]::NewLine) | ConvertFrom-Json
           if (-not $report.official_gate_complete -or -not $report.source_unchanged) { throw "public-v1 gate failed" }
+      - name: Save clean SARIF evidence
+        shell: pwsh
+        run: |
+          $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal" }
+          $sarifPath = Join-Path $env:RUNNER_TEMP "release-smoke-$env:RUNNER_OS.sarif"
+          & $binary --project examples/ci-smoke check --format sarif | Out-File -LiteralPath $sarifPath -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "release SARIF smoke failed with $LASTEXITCODE" }
+          $sarif = Get-Content -Raw -LiteralPath $sarifPath | ConvertFrom-Json
+          if ($sarif.runs[0].results.Count -ne 0) { throw "release SARIF smoke must be clean" }
+          $python = $null
+          foreach ($name in @("python", "python3")) {
+            $candidate = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate -and -not [string]::IsNullOrWhiteSpace($candidate.Source) -and (Test-Path -LiteralPath $candidate.Source -PathType Leaf)) { $python = $candidate.Source; break }
+          }
+          if (-not $python) { throw "Python is required for SARIF privacy validation" }
+          & $python ci/validate-sarif.py $sarifPath --expect-results 0
+          if ($LASTEXITCODE -ne 0) { throw "release SARIF privacy validation failed" }
+      - name: Assert no open smoke alert
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            count="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?state=open&per_page=100" --jq '[.[] | select(.most_recent_instance.category == "rbx-heal-smoke")] | length' | awk '{ total += $1 } END { print total + 0 }')"
+            if [[ "$count" == "0" ]]; then exit 0; fi
+            sleep 10
+          done
+          echo "rbx-heal-smoke still has open alert(s)" >&2
+          exit 1
       - name: Upload release gate evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-gate-${{ matrix.os }}
-          path: ${{ runner.temp }}/public-v1-release-*.json
+          path: |
+            ${{ runner.temp }}/public-v1-release-*.json
+            ${{ runner.temp }}/release-smoke-*.sarif
 
   release-gate-compare:
     name: Compare release gate evidence
-    needs: release-gate
+    needs: [resolve-release, release-gate]
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
+      - name: Checkout release source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: main
+          ref: ${{ needs.resolve-release.outputs.source_ref }}
+          persist-credentials: false
       - name: Download Windows evidence
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
@@ -140,11 +273,75 @@ jobs:
         run: |
           $windows = Get-ChildItem reports/windows -Filter "*.json" | Select-Object -First 1
           $ubuntu = Get-ChildItem reports/ubuntu -Filter "*.json" | Select-Object -First 1
-          ./ci/compare-public-corpus.ps1 -WindowsReport $windows.FullName -UbuntuReport $ubuntu.FullName
+          if ($null -eq $windows -or $null -eq $ubuntu) { throw "release gate evidence is missing" }
+          ./ci/compare-public-corpus.ps1 -WindowsReport $windows.FullName -UbuntuReport $ubuntu.FullName -Output "$env:RUNNER_TEMP/public-v1-release-compare.json"
+          $windowsSarif = Get-ChildItem reports/windows -Filter "*.sarif" | Select-Object -First 1
+          $ubuntuSarif = Get-ChildItem reports/ubuntu -Filter "*.sarif" | Select-Object -First 1
+          if ($null -eq $windowsSarif -or $null -eq $ubuntuSarif) { throw "release SARIF evidence is missing" }
+          python3 ci/compare-sarif.py --windows $windowsSarif.FullName --ubuntu $ubuntuSarif.FullName --output "$env:RUNNER_TEMP/sarif-release-compare.json"
+      - name: Upload comparison evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-gate-compare
+          path: |
+            ${{ runner.temp }}/public-v1-release-compare.json
+            ${{ runner.temp }}/sarif-release-compare.json
+
+  stable-preflight:
+    name: Validate stable qualification
+    if: needs.resolve-release.outputs.release_tag == 'v0.10.0'
+    needs: [resolve-release, release-gate-compare]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout stable source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve-release.outputs.source_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Download scheduled run metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stability-evidence"
+          gh run list --workflow ci.yml --event schedule --limit 100 \
+            --json databaseId,status,conclusion,createdAt,attempt,url,event,headSha \
+            > "$RUNNER_TEMP/scheduled-runs.json"
+          jq '[.[] | {id:.databaseId,status,conclusion,created_at:.createdAt,run_attempt:.attempt,html_url:.url,event,head_sha:.headSha}]' \
+            "$RUNNER_TEMP/scheduled-runs.json" > "$RUNNER_TEMP/scheduled-runs-normalized.json"
+          while IFS= read -r run_id; do
+            mkdir -p "$RUNNER_TEMP/stability-evidence/$run_id"
+            gh run download "$run_id" --name "stable-qualification-run-$run_id" --dir "$RUNNER_TEMP/stability-evidence/$run_id" || true
+          done < <(jq -r '.[].id' "$RUNNER_TEMP/scheduled-runs-normalized.json")
+      - name: Verify seven-day first-attempt streak
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/verify-stability-streak.py \
+            --runs "$RUNNER_TEMP/scheduled-runs-normalized.json" \
+            --evidence-dir "$RUNNER_TEMP/stability-evidence" \
+            --candidate-tag "${{ needs.resolve-release.outputs.candidate_tag }}" \
+            --candidate-commit "${{ needs.resolve-release.outputs.candidate_commit }}" \
+            --required-runs "${{ needs.resolve-release.outputs.required_scheduled_runs }}" \
+            --output "$RUNNER_TEMP/rbx-heal-v0.10.0-stability.json"
+      - name: Upload stability proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-qualification
+          path: ${{ runner.temp }}/rbx-heal-v0.10.0-stability.json
+          if-no-files-found: error
 
   build-artifact:
     name: Build ${{ matrix.platform }} archive
-    needs: release-gate-compare
+    needs: [resolve-release, release-gate-compare, stable-preflight]
+    if: >-
+      always() && needs.release-gate-compare.result == 'success' &&
+      (needs.stable-preflight.result == 'success' || needs.stable-preflight.result == 'skipped')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -154,11 +351,14 @@ jobs:
             platform: windows-x86_64
           - os: ubuntu-24.04
             platform: ubuntu-x86_64
+    env:
+      RELEASE_VERSION: ${{ needs.resolve-release.outputs.release_version }}
     steps:
-      - name: Checkout
+      - name: Checkout release source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.resolve-release.outputs.source_ref }}
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@bc540ba06a4ccee415bb241490e0b25ee8e7d315 # 1.85.0
       - name: Build release binary
@@ -192,18 +392,33 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Validate, attest, and publish prerelease
-    needs: [release-gate-compare, build-artifact]
+    name: Validate and publish one release
+    needs: [resolve-release, release-gate-compare, stable-preflight, build-artifact]
+    if: >-
+      always() && needs.build-artifact.result == 'success' &&
+      needs.release-gate-compare.result == 'success' &&
+      (needs.stable-preflight.result == 'success' || needs.stable-preflight.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
       id-token: write
       attestations: write
+    env:
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+      RELEASE_VERSION: ${{ needs.resolve-release.outputs.release_version }}
+      PUBLISH: ${{ needs.resolve-release.outputs.publish }}
+      PRERELEASE: ${{ needs.resolve-release.outputs.prerelease }}
+      CANDIDATE_TAG: ${{ needs.resolve-release.outputs.candidate_tag }}
+      CANDIDATE_COMMIT: ${{ needs.resolve-release.outputs.candidate_commit }}
+      REQUIRED_SCHEDULED_RUNS: ${{ needs.resolve-release.outputs.required_scheduled_runs }}
     steps:
-      - name: Checkout
+      - name: Checkout release source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.resolve-release.outputs.source_ref }}
+          fetch-depth: 0
+          persist-credentials: true
       - name: Download Windows archive
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
@@ -224,13 +439,45 @@ jobs:
         with:
           name: release-gate-ubuntu-24.04
           path: evidence/ubuntu
+      - name: Download stable proof
+        if: env.RELEASE_TAG == 'v0.10.0'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: stable-qualification
+          path: stability
       - name: Build aggregate quality report
         shell: bash
         run: |
           set -euo pipefail
           python3 ci/aggregate-pilot-report.py evidence/windows/*.json evidence/ubuntu/*.json \
             --output "dist/rbx-heal-v$RELEASE_VERSION-quality.json" --version "$RELEASE_VERSION"
-      - name: Validate checksums and smoke archives
+          if [[ "$RELEASE_TAG" == "v0.10.0" ]]; then
+            cp stability/rbx-heal-v0.10.0-stability.json "dist/rbx-heal-v$RELEASE_VERSION-stability.json"
+            python3 - "$CANDIDATE_TAG" "$CANDIDATE_COMMIT" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          path = Path("stability/rbx-heal-v0.10.0-stability.json")
+          value = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "schema_version": 1,
+              "kind": "StableQualificationV1",
+              "candidate_tag": sys.argv[1],
+              "candidate_commit": sys.argv[2].lower(),
+              "required_scheduled_runs": int(os.environ["REQUIRED_SCHEDULED_RUNS"]),
+              "qualified": True,
+              "status": "qualified",
+          }
+          for key, expected_value in expected.items():
+              if value.get(key) != expected_value:
+                  raise SystemExit(f"stable qualification proof mismatch: {key}")
+          required = int(os.environ["REQUIRED_SCHEDULED_RUNS"])
+          if len(value.get("runs", [])) != required or len(value.get("utc_dates", [])) != required:
+              raise SystemExit("stable qualification proof has the wrong run count")
+          PY
+          fi
+      - name: Validate checksums, provenance, and smoke archives
         shell: bash
         run: |
           set -euo pipefail
@@ -241,19 +488,43 @@ jobs:
           mkdir unpack-windows unpack-ubuntu
           unzip -q dist/*.zip -d unpack-windows
           tar -xzf dist/*.tar.gz -C unpack-ubuntu
-          unpack-ubuntu/rbx-heal --version
-          unpack-ubuntu/rbx-heal --project unpack-ubuntu doctor --format json
+          unpack-ubuntu/rbx-heal --version | grep -F "$RELEASE_VERSION"
+          unpack-ubuntu/rbx-heal --project unpack-ubuntu doctor --format json > /tmp/rbx-heal-doctor.json
+          unpack-ubuntu/rbx-heal --project unpack-ubuntu check --format sarif > /tmp/rbx-heal-smoke.sarif
+          python3 ci/validate-sarif.py /tmp/rbx-heal-smoke.sarif --expect-results 0
           test "$(find dist -maxdepth 1 -name '*provenance.json' | wc -l)" -eq 2
           for provenance in dist/*provenance.json; do test -s "$provenance"; done
+          if grep -R -E '(^|/)(Users|home|runner)/|[A-Za-z]:\\' dist/*provenance.json; then
+            echo "provenance contains an absolute path" >&2
+            exit 2
+          fi
+      - name: Remove matching incomplete draft before publish
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$RELEASE_TAG" 2>/dev/null || true)"
+          if [[ -n "$release_json" ]]; then
+            draft="$(jq -r '.draft' <<<"$release_json")"
+            [[ "$draft" == "true" ]] || { echo "published release already exists; refusing overwrite" >&2; exit 2; }
+            tag_name="$(jq -r '.tag_name' <<<"$release_json")"
+            [[ "$tag_name" == "$RELEASE_TAG" ]] || { echo "draft release identity mismatch" >&2; exit 2; }
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/$(jq -r '.id' <<<"$release_json")"
+          fi
       - name: Attest Windows archive
+        if: env.PUBLISH == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: dist/*.zip
       - name: Attest Ubuntu archive
+        if: env.PUBLISH == 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: dist/*.tar.gz
       - name: Verify attestations
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -261,10 +532,47 @@ jobs:
           set -euo pipefail
           gh attestation verify dist/*.zip --repo "$GITHUB_REPOSITORY"
           gh attestation verify dist/*.tar.gz --repo "$GITHUB_REPOSITORY"
-      - name: Publish single prerelease
+      - name: Create draft, upload assets, and publish
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" --verify-tag --prerelease --title "rbx-heal $RELEASE_TAG" --notes "Production proof release with checksums, provenance, and attestations." dist/*
+          args=(gh release create "$RELEASE_TAG" --verify-tag --draft --title "rbx-heal $RELEASE_TAG" --notes "Production proof release with checksums, provenance, and attestations.")
+          if [[ "$PRERELEASE" == "true" ]]; then args+=(--prerelease); fi
+          "${args[@]}"
+          gh release upload "$RELEASE_TAG" dist/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false
+      - name: Verify published remote assets
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf remote-assets remote-unpack
+          mkdir -p remote-assets remote-unpack/windows remote-unpack/ubuntu
+          gh release download "$RELEASE_TAG" --dir remote-assets
+          (cd remote-assets && sha256sum -c ./*.sha256)
+          test "$(find remote-assets -maxdepth 1 -name '*.zip' | wc -l)" -eq 1
+          test "$(find remote-assets -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+          test "$(find remote-assets -maxdepth 1 -name '*provenance.json' | wc -l)" -eq 2
+          for provenance in remote-assets/*provenance.json; do
+            test -s "$provenance"
+            if grep -E '(^|/)(Users|home|runner)/|[A-Za-z]:\\' "$provenance"; then
+              echo "downloaded provenance contains an absolute path" >&2
+              exit 2
+            fi
+          done
+          if [[ "$RELEASE_TAG" == "v0.10.0" ]]; then
+            test -s "remote-assets/rbx-heal-v$RELEASE_VERSION-stability.json"
+          fi
+          unzip -q remote-assets/*.zip -d remote-unpack/windows
+          tar -xzf remote-assets/*.tar.gz -C remote-unpack/ubuntu
+          remote-unpack/ubuntu/rbx-heal --version | grep -F "$RELEASE_VERSION"
+          remote-unpack/ubuntu/rbx-heal --project remote-unpack/ubuntu doctor --format json >/dev/null
+          remote-unpack/ubuntu/rbx-heal --project remote-unpack/ubuntu check --format sarif > /tmp/rbx-heal-remote-smoke.sarif
+          python3 ci/validate-sarif.py /tmp/rbx-heal-remote-smoke.sarif --expect-results 0
+          gh attestation verify remote-assets/*.zip --repo "$GITHUB_REPOSITORY"
+          gh attestation verify remote-assets/*.tar.gz --repo "$GITHUB_REPOSITORY"
