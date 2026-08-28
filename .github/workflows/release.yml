@@ -91,7 +91,7 @@ jobs:
           expected = {"schema_version": 1, "candidate_tag": "v0.10.0-rc.2", "stable_tag": "v0.10.0", "required_scheduled_runs": 7}
           if data != expected:
               raise SystemExit("unknown or unexpected stable candidate manifest")
-            PY
+          PY
             candidate_tag="v0.10.0-rc.2"
             required_scheduled_runs="7"
             candidate_commit="$(git rev-parse "refs/tags/${candidate_tag}^{commit}" 2>/dev/null || true)"
