@@ -546,10 +546,14 @@ const IDENTITY_OUTPUT_LIMIT: usize = 32 * 1024;
 /// Probe a resolved verifier directly, without invoking a shell.  The probe
 /// is deliberately bounded because it runs before a write transaction starts.
 fn probe_version(program: &Path) -> Result<String, String> {
+    probe_argument(program, "--version", "version probe")
+}
+
+fn probe_argument(program: &Path, argument: &str, label: &str) -> Result<String, String> {
     let started = Instant::now();
     let mut command_builder = Command::new(program);
     command_builder
-        .arg("--version")
+        .arg(argument)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -571,7 +575,7 @@ fn probe_version(program: &Path) -> Result<String, String> {
         let _ = child.wait();
         let _ = join_capture(stdout_reader);
         let _ = join_capture(stderr_reader);
-        return Err("could not attach version probe to a Windows Job Object".into());
+        return Err(format!("could not attach {label} to a Windows Job Object"));
     }
     #[cfg(windows)]
     if !resume_suspended_process(&child) {
@@ -579,7 +583,9 @@ fn probe_version(program: &Path) -> Result<String, String> {
         let _ = child.wait();
         let _ = join_capture(stdout_reader);
         let _ = join_capture(stderr_reader);
-        return Err("could not resume version probe process after Job Object attach".into());
+        return Err(format!(
+            "could not resume process after {label} Job Object attach"
+        ));
     }
     let mut timed_out = false;
     let status = loop {
@@ -602,20 +608,20 @@ fn probe_version(program: &Path) -> Result<String, String> {
     let stdout = join_capture(stdout_reader);
     let stderr = join_capture(stderr_reader);
     if timed_out {
-        return Err("version probe timed out after 5000 ms".into());
+        return Err(format!("{label} timed out after 5000 ms"));
     }
     let Some(status) = status else {
-        return Err("version probe did not return a process status".into());
+        return Err(format!("{label} did not return a process status"));
     };
     let mut bytes = stdout.bytes;
     bytes.extend_from_slice(&stderr.bytes);
     bytes.truncate(IDENTITY_OUTPUT_LIMIT);
     let text = String::from_utf8_lossy(&bytes).trim().to_owned();
     if !status.success() {
-        return Err(format!("version probe exited with {status}"));
+        return Err(format!("{label} exited with {status}"));
     }
     if text.is_empty() {
-        return Err("version probe returned no identity".into());
+        return Err(format!("{label} returned no identity"));
     }
     Ok(text)
 }
@@ -643,6 +649,16 @@ fn probe_identity(program: &Path) -> (Option<String>, Option<String>) {
     }
     let version_text = match probe_version(program) {
         Ok(text) => text,
+        Err(error) if executable.eq_ignore_ascii_case("luau-analyze") => {
+            // Luau's standalone analyzer does not expose a stable --version
+            // flag in all official releases.  Its help banner is still a
+            // bounded, executable-identity check; configured expected_version
+            // or expected_sha256 constraints remain authoritative when used.
+            match probe_argument(program, "--help", "Luau analyzer help probe") {
+                Ok(help) => format!("help banner (version flag unsupported): {help}"),
+                Err(help_error) => return (None, Some(format!("{error}; {help_error}"))),
+            }
+        }
         Err(error) => return (None, Some(error)),
     };
     if executable.eq_ignore_ascii_case("rojo")
