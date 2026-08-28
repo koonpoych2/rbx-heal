@@ -69,7 +69,7 @@ jobs:
           version="${release_tag#v}"
           source_commit="$(git rev-parse HEAD)"
           metadata="$(cargo metadata --no-deps --format-version 1)"
-          printf '%s' "$metadata" | python3 -c 'import json,sys; expected=sys.argv[1]; data=json.load(sys.stdin); versions={package["version"] for package in data.get("packages", [])}; raise SystemExit(f"workspace versions {sorted(versions)!r} do not match {expected!r}") if not versions or versions != {expected} else None' "$version"
+          printf '%s' "$metadata" | python3 -c 'import json,sys; expected=sys.argv[1]; data=json.load(sys.stdin); versions={package["version"] for package in data.get("packages", [])}; import sys as _sys; _sys.exit(f"workspace versions {sorted(versions)!r} do not match {expected!r}") if not versions or versions != {expected} else None' "$version"
           publish=false
           if [[ "$EVENT_NAME" == "push" ]]; then publish=true; elif [[ "$PUBLISH_INPUT" == "true" ]]; then publish=true; fi
           if [[ "$publish" == "true" ]]; then
