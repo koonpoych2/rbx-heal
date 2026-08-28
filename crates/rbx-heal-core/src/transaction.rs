@@ -867,10 +867,12 @@ fn reject_link_or_junction(path: &Path) -> Result<(), TransactionError> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if is_link_or_junction(&metadata) {
-                Err(TransactionError::Journal(format!(
-                    "transaction metadata path must not be a symlink or junction: {}",
-                    path.display()
-                )))
+                // Treat links as a confinement violation rather than a generic
+                // journal error.  Callers can then reliably distinguish an
+                // unsafe path from malformed recovery evidence on every OS.
+                Err(TransactionError::Path(PathError::OutsideRoot {
+                    path: path.to_path_buf(),
+                }))
             } else {
                 Ok(())
             }
