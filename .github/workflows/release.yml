@@ -505,13 +505,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$RELEASE_TAG" 2>/dev/null || true)"
+          # Query the collection endpoint so a normal 404 for a missing tag is
+          # represented by an empty match.  Other API failures remain fatal
+          # instead of being mistaken for a release record.
+          release_json="$(
+            gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" |
+              jq -c --arg release_tag "$RELEASE_TAG" \
+                '[ .[] | .[]? | select(.tag_name == $release_tag) ] | .[0] // empty'
+          )"
           if [[ -n "$release_json" ]]; then
-            draft="$(jq -r '.draft' <<<"$release_json")"
+            draft="$(jq -er '.draft' <<<"$release_json")"
             [[ "$draft" == "true" ]] || { echo "published release already exists; refusing overwrite" >&2; exit 2; }
-            tag_name="$(jq -r '.tag_name' <<<"$release_json")"
+            tag_name="$(jq -er '.tag_name' <<<"$release_json")"
             [[ "$tag_name" == "$RELEASE_TAG" ]] || { echo "draft release identity mismatch" >&2; exit 2; }
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/$(jq -r '.id' <<<"$release_json")"
+            release_id="$(jq -er '.id | numbers' <<<"$release_json")"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
           fi
       - name: Attest Windows archive
         if: env.PUBLISH == 'true'
