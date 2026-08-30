@@ -23,7 +23,7 @@ def clean_document() -> dict:
                 "tool": {
                     "driver": {
                         "name": "rbx-heal",
-                        "version": "0.10.0-rc.2",
+                        "version": "0.10.0-rc.3",
                         "rules": [],
                     }
                 },

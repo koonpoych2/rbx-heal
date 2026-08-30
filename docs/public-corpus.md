@@ -9,8 +9,13 @@ CI checks out each repository with credentials disabled and passes canonical
 roots through:
 
 - RBX_HEAL_PILOT_PLANT_ROOT
-- RBX_HEAL_PILOT_INFECTED_ROOT
+- RBX_HEAL_PILOT_HACKER_TYCOON_ROOT
 - RBX_HEAL_PILOT_ROBLOQUAKE_ROOT
+
+The third project is `jblaz6335/hacker-tycoon`, pinned in the manifest as a
+public MIT-licensed replacement for the former private `roblox-infected`
+reference. The replacement keeps the three-project gate reproducible without
+requiring credentials or copying corpus source into this repository.
 
 Run the suite after those roots are available:
 
@@ -27,4 +32,3 @@ temporary directory.
 
 Slime Farm remains available through the default rbx-heal pilot command for
 backward compatibility, but it is private and is not a release gate.
-

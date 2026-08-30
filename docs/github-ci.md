@@ -93,13 +93,13 @@ days, download the run metadata and artifacts and verify them offline:
 
 ~~~text
 python ci/verify-stability-streak.py --runs scheduled-runs.json \
-  --evidence-dir stability-evidence --candidate-tag v0.10.0-rc.2 \
+  --evidence-dir stability-evidence --candidate-tag v0.10.0-rc.3 \
   --candidate-commit <sha> --required-runs 7 \
   --output rbx-heal-v0.10.0-stability.json
 ~~~
 
 The release workflow accepts any `v*` tag and defaults manual dispatch to a
 non-publishing preflight. Publishing is enabled only for an existing protected
-tag. `v0.10.0` additionally requires the streak proof, RC2 as its direct
-parent, and a version-only diff; no tag or stable release is created
-automatically.
+tag. `v0.10.0` additionally requires the streak proof, the candidate named by
+`ci/stable-candidate.json` as its direct parent, and a version-only diff; no
+tag or stable release is created automatically.

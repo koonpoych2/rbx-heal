@@ -674,8 +674,8 @@ type PilotSuiteReportV1 = PublicPilotSuiteReport;
 const PUBLIC_PILOT_MANIFEST_TEXT: &str = include_str!("../../../pilot/public-v1.toml");
 const PUBLIC_PLANT_EXPECTATIONS_TEXT: &str =
     include_str!("../../../pilot/public-v1-expectations/plant.json");
-const PUBLIC_INFECTED_EXPECTATIONS_TEXT: &str =
-    include_str!("../../../pilot/public-v1-expectations/infected.json");
+const PUBLIC_HACKER_TYCOON_EXPECTATIONS_TEXT: &str =
+    include_str!("../../../pilot/public-v1-expectations/hacker-tycoon.json");
 const PUBLIC_ROBLOQUAKE_EXPECTATIONS_TEXT: &str =
     include_str!("../../../pilot/public-v1-expectations/robloquake.json");
 
@@ -702,7 +702,7 @@ fn public_pilot_manifest() -> Result<PublicPilotManifest, Box<dyn std::error::Er
             || project.required_verifiers != ["luau_reparse", "rojo_build"]
             || !matches!(
                 project.expectations.as_str(),
-                "plant" | "infected" | "robloquake"
+                "plant" | "hacker-tycoon" | "robloquake"
             )
         {
             return Err("invalid public-v1 project identity".into());
@@ -710,7 +710,7 @@ fn public_pilot_manifest() -> Result<PublicPilotManifest, Box<dyn std::error::Er
         project.config.validate()?;
     }
     let expected = BTreeSet::from([
-        "roblox-infected".to_string(),
+        "hacker-tycoon".to_string(),
         "robloquake".to_string(),
         "roblox-resources-plant".to_string(),
     ]);
@@ -725,7 +725,7 @@ fn public_pilot_expectations(
 ) -> Result<PublicPilotExpectations, Box<dyn std::error::Error>> {
     let text = match selector {
         "plant" => PUBLIC_PLANT_EXPECTATIONS_TEXT,
-        "infected" => PUBLIC_INFECTED_EXPECTATIONS_TEXT,
+        "hacker-tycoon" => PUBLIC_HACKER_TYCOON_EXPECTATIONS_TEXT,
         "robloquake" => PUBLIC_ROBLOQUAKE_EXPECTATIONS_TEXT,
         _ => return Err("unknown public-v1 expectation set".into()),
     };

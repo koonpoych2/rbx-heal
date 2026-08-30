@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0-rc.3
+
+- Replaced the private `roblox-infected` public-v1 corpus entry with the
+  public, MIT-licensed `jblaz6335/hacker-tycoon` repository pinned at an
+  immutable commit.
+- Regenerated reviewed portable finding expectations and advanced the stable
+  qualification candidate so scheduled CI cannot depend on a private repo.
+
 ## 0.10.0-rc.2
 
 - Made the uploaded SARIF smoke project clean; suppression coverage now lives

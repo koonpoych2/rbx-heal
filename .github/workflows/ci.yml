@@ -225,12 +225,12 @@ jobs:
           submodules: false
           fetch-depth: 1
 
-      - name: Checkout roblox-infected at pinned commit
+      - name: Checkout hacker-tycoon at pinned commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: oh-ashen-one/roblox-infected
-          ref: bc1dfaad043bd2676421adb886ce87a6314de8b7
-          path: corpus/roblox-infected
+          repository: jblaz6335/hacker-tycoon
+          ref: a71871c2f29441891e975da8ee9559c6a9130957
+          path: corpus/hacker-tycoon
           persist-credentials: false
           submodules: false
           fetch-depth: 1
@@ -268,7 +268,7 @@ jobs:
         shell: pwsh
         env:
           RBX_HEAL_PILOT_PLANT_ROOT: ${{ github.workspace }}/corpus/roblox-resources/experiences/plant
-          RBX_HEAL_PILOT_INFECTED_ROOT: ${{ github.workspace }}/corpus/roblox-infected
+          RBX_HEAL_PILOT_HACKER_TYCOON_ROOT: ${{ github.workspace }}/corpus/hacker-tycoon
           RBX_HEAL_PILOT_ROBLOQUAKE_ROOT: ${{ github.workspace }}/corpus/robloquake
         run: |
           $binary = if ($IsWindows) { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal.exe" } else { Join-Path $env:GITHUB_WORKSPACE "target/release/rbx-heal" }
@@ -287,7 +287,11 @@ jobs:
         with:
           name: public-v1-report-${{ matrix.os }}
           path: ${{ runner.temp }}/public-v1-*.json
-          if-no-files-found: error
+          # A checkout/setup failure may happen before the pilot can emit its
+          # report. Keep the primary failure visible without masking it with a
+          # second artifact-upload failure; successful pilot runs still always
+          # produce this report before the step completes.
+          if-no-files-found: warn
 
   public-corpus-compare:
     name: Compare portable public identities

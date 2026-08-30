@@ -18,13 +18,13 @@ To verify downloaded run metadata and artifacts offline:
 python ci/verify-stability-streak.py \
   --runs scheduled-runs.json \
   --evidence-dir stability-evidence \
-  --candidate-tag v0.10.0-rc.2 \
+  --candidate-tag v0.10.0-rc.3 \
   --candidate-commit <40-hex-commit> \
   --required-runs 7 \
   --output rbx-heal-v0.10.0-stability.json
 ```
 
 Stable publication remains a human-approved operation. The release workflow
-performs a non-publishing preflight first and requires RC2 as the direct parent
-of the one version-only stable commit. Prerelease releases do not require a
-streak.
+performs a non-publishing preflight first and requires the candidate named by
+`ci/stable-candidate.json` as the direct parent of the one version-only stable
+commit. Prerelease releases do not require a streak.

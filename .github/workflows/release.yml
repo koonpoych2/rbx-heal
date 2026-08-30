@@ -12,9 +12,9 @@ on:
         default: main
         type: string
       release_tag:
-        description: Release tag to validate (for example v0.10.0-rc.2)
+        description: Release tag to validate (for example v0.10.0-rc.3)
         required: true
-        default: v0.10.0-rc.2
+        default: v0.10.0-rc.3
         type: string
       publish:
         description: Publish a protected tag release after all gates pass
@@ -84,22 +84,33 @@ jobs:
           candidate_commit=""
           required_scheduled_runs=""
           if [[ "$release_tag" == "v0.10.0" ]]; then
-            python3 - <<'PY'
+            candidate_tag="$(python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
           data = json.loads(Path("ci/stable-candidate.json").read_text(encoding="utf-8"))
-          expected = {"schema_version": 1, "candidate_tag": "v0.10.0-rc.2", "stable_tag": "v0.10.0", "required_scheduled_runs": 7}
-          if data != expected:
+          expected_keys = {"schema_version", "candidate_tag", "stable_tag", "required_scheduled_runs"}
+          candidate = data.get("candidate_tag") if isinstance(data, dict) else None
+          if (
+              not isinstance(data, dict)
+              or set(data) != expected_keys
+              or data.get("schema_version") != 1
+              or not isinstance(candidate, str)
+              or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+", candidate)
+              or data.get("stable_tag") != "v0.10.0"
+              or data.get("required_scheduled_runs") != 7
+          ):
               raise SystemExit("unknown or unexpected stable candidate manifest")
+          print(candidate)
           PY
-            candidate_tag="v0.10.0-rc.2"
+            )"
             required_scheduled_runs="7"
             candidate_commit="$(git rev-parse "refs/tags/${candidate_tag}^{commit}" 2>/dev/null || true)"
             [[ "$candidate_commit" =~ ^[0-9a-fA-F]{40}$ ]] || { echo "stable candidate tag is unavailable" >&2; exit 2; }
             parent="$(git rev-list --parents -n 1 "$source_commit" | awk '{print $2}')"
             [[ "$(git rev-list --parents -n 1 "$source_commit" | awk '{print NF}')" == "2" ]] || { echo "stable source must be a single-parent version commit" >&2; exit 2; }
-            [[ "$parent" == "$candidate_commit" ]] || { echo "stable source must have RC2 as its direct parent" >&2; exit 2; }
-            [[ "$(git rev-list --count "$candidate_commit..$source_commit")" == "1" ]] || { echo "stable source must contain exactly one commit after RC2" >&2; exit 2; }
+            [[ "$parent" == "$candidate_commit" ]] || { echo "stable source must have the stable candidate as its direct parent" >&2; exit 2; }
+            [[ "$(git rev-list --count "$candidate_commit..$source_commit")" == "1" ]] || { echo "stable source must contain exactly one commit after the candidate" >&2; exit 2; }
             while IFS= read -r changed; do
               case "$changed" in
                 Cargo.toml|Cargo.lock|README.md|CHANGELOG.md) ;;
@@ -145,12 +156,12 @@ jobs:
           persist-credentials: false
           submodules: false
           fetch-depth: 1
-      - name: Checkout roblox-infected
+      - name: Checkout hacker-tycoon
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: oh-ashen-one/roblox-infected
-          ref: bc1dfaad043bd2676421adb886ce87a6314de8b7
-          path: corpus/roblox-infected
+          repository: jblaz6335/hacker-tycoon
+          ref: a71871c2f29441891e975da8ee9559c6a9130957
+          path: corpus/hacker-tycoon
           persist-credentials: false
           submodules: false
           fetch-depth: 1
@@ -187,12 +198,12 @@ jobs:
         shell: pwsh
         env:
           RBX_HEAL_PILOT_PLANT_ROOT: ${{ github.workspace }}/corpus/roblox-resources/experiences/plant
-          RBX_HEAL_PILOT_INFECTED_ROOT: ${{ github.workspace }}/corpus/roblox-infected
+          RBX_HEAL_PILOT_HACKER_TYCOON_ROOT: ${{ github.workspace }}/corpus/hacker-tycoon
           RBX_HEAL_PILOT_ROBLOQUAKE_ROOT: ${{ github.workspace }}/corpus/robloquake
         run: |
           $expected = @(
             @("corpus/roblox-resources", "b039dc190675d177dbcebc2ecbc215be992e2ad9", "LICENSE.md"),
-            @("corpus/roblox-infected", "bc1dfaad043bd2676421adb886ce87a6314de8b7", "LICENSE"),
+            @("corpus/hacker-tycoon", "a71871c2f29441891e975da8ee9559c6a9130957", "LICENSE"),
             @("corpus/robloquake", "5e9715f65147305fc79ae083bc3be564880b4def", "LICENSE")
           )
           foreach ($item in $expected) {

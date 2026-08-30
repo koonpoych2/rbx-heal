@@ -33,12 +33,12 @@ exclude = [
 ]
 
 [[projects]]
-id = "roblox-infected"
-repository = "https://github.com/oh-ashen-one/roblox-infected.git"
-commit = "bc1dfaad043bd2676421adb886ce87a6314de8b7"
+id = "hacker-tycoon"
+repository = "https://github.com/jblaz6335/hacker-tycoon.git"
+commit = "a71871c2f29441891e975da8ee9559c6a9130957"
 license = "MIT"
-root_env = "RBX_HEAL_PILOT_INFECTED_ROOT"
-expectations = "infected"
+root_env = "RBX_HEAL_PILOT_HACKER_TYCOON_ROOT"
+expectations = "hacker-tycoon"
 required_verifiers = ["luau_reparse", "rojo_build"]
 
 [projects.config.scan]

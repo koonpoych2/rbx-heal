@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "ci" / "verify-stability-streak.py"
-TAG = "v0.10.0-rc.2"
+TAG = "v0.10.0-rc.3"
 COMMIT = "a" * 40
 
 
